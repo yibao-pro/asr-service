@@ -1,0 +1,13 @@
+services:
+  asr-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asr-service
+    env_file:
+      - .env
+    ports:
+      - "${ASR_SERVICE_PORT:-8002}:${ASR_SERVICE_PORT:-8002}"
+    volumes:
+      - ./model:/app/model:ro
+    restart: unless-stopped
