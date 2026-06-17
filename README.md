@@ -125,6 +125,39 @@ docker compose up -d --build
 
 并在运行时为容器提供 GPU 访问能力。
 
+镜像地址：
+
+```text
+ghcr.io/yibao-pro/asr-service:latest
+```
+
+## GitHub Actions
+
+工作流文件：
+
+- [docker-image.yml](./.github/workflows/docker-image.yml)
+
+当前流程：
+
+- `docker-image`：构建并推送 `ghcr.io/yibao-pro/asr-service:latest`
+- `deploy`：SSH 到目标服务器，先启动 candidate 容器做健康检查，再替换正式容器
+
+部署所需 GitHub Secrets：
+
+- `SERVER_HOST`
+- `SERVER_USER`
+- `SERVER_SSH_KEY`
+
+服务器部署约定：
+
+- 部署目录：`/data/yibao-agent-platform/asr-service`
+- 环境文件：`/data/yibao-agent-platform/asr-service/.env`
+- 模型目录：`/data/yibao-agent-platform/asr-service/model`
+- 正式容器名：`yibao-asr-service`
+- 候选容器名：`yibao-asr-service-candidate`
+- candidate 端口：`18002`
+- 生产端口：`8002`
+
 ## 新机器部署
 
 ### 1. 准备模型目录

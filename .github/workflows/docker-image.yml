@@ -1,0 +1,132 @@
+name: Build And Push ASR Service Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_REPOSITORY: yibao-pro/asr-service
+  IMAGE_TAG: latest
+
+jobs:
+  docker-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push asr-service image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+  deploy:
+    needs: docker-image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy asr-service to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 60m
+          script: |
+            set -e
+
+            export http_proxy=http://127.0.0.1:7890
+            export https_proxy=http://127.0.0.1:7890
+            export HTTP_PROXY=$http_proxy
+            export HTTPS_PROXY=$https_proxy
+            export no_proxy=127.0.0.1,localhost
+            export NO_PROXY=$no_proxy
+
+            DEPLOY_DIR=/data/yibao-agent-platform/asr-service
+            IMAGE=ghcr.io/yibao-pro/asr-service:latest
+            PROD_NAME=yibao-asr-service
+            TEST_NAME=yibao-asr-service-candidate
+            ENV_FILE=${DEPLOY_DIR}/.env
+            MODEL_DIR=${DEPLOY_DIR}/model
+
+            mkdir -p "${DEPLOY_DIR}"
+            cd "${DEPLOY_DIR}"
+
+            if [ ! -f "${ENV_FILE}" ]; then
+              echo "Missing deploy env file: ${ENV_FILE}"
+              exit 1
+            fi
+
+            if [ ! -d "${MODEL_DIR}" ]; then
+              echo "Missing model directory: ${MODEL_DIR}"
+              exit 1
+            fi
+
+            echo "Pull latest image..."
+            docker pull "${IMAGE}"
+
+            echo "Remove old candidate container..."
+            docker stop "${TEST_NAME}" || true
+            docker rm "${TEST_NAME}" || true
+
+            echo "Start candidate container..."
+            docker run -d \
+              --name "${TEST_NAME}" \
+              --restart unless-stopped \
+              --gpus all \
+              --env-file "${ENV_FILE}" \
+              -e ASR_SERVICE_PORT=8002 \
+              -v "${MODEL_DIR}:/app/model:ro" \
+              -p 18002:8002 \
+              "${IMAGE}"
+
+            echo "Wait for service..."
+            sleep 5
+
+            echo "Health check..."
+            curl --noproxy '*' -f http://127.0.0.1:18002/healthz
+
+            echo "Candidate passed. Replace production container..."
+            docker stop "${TEST_NAME}"
+            docker rm "${TEST_NAME}"
+
+            docker stop "${PROD_NAME}" || true
+            docker rm "${PROD_NAME}" || true
+
+            docker run -d \
+              --name "${PROD_NAME}" \
+              --restart unless-stopped \
+              --gpus all \
+              --env-file "${ENV_FILE}" \
+              -e ASR_SERVICE_PORT=8002 \
+              -v "${MODEL_DIR}:/app/model:ro" \
+              -p 8002:8002 \
+              "${IMAGE}"
+
+            echo "Check production..."
+            sleep 5
+            curl --noproxy '*' -f http://127.0.0.1:8002/healthz
+
+            echo "Deploy success."
