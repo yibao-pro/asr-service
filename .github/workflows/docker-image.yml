@@ -41,11 +41,38 @@ jobs:
           platforms: linux/amd64
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
+      - name: Pull published image to runner
+        run: docker pull "${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+
+      - name: Save image archive
+        run: docker save "${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }}" | gzip > asr-service-image.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asr-service-image
+          path: asr-service-image.tar.gz
+          if-no-files-found: error
+
   deploy:
     needs: docker-image
     runs-on: ubuntu-latest
 
     steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: asr-service-image
+
+      - name: Copy image archive to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: asr-service-image.tar.gz
+          target: /tmp
+
       - name: Deploy asr-service to server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -57,33 +84,13 @@ jobs:
           script: |
             set -e
 
-            export http_proxy=http://127.0.0.1:7890
-            export https_proxy=http://127.0.0.1:7890
-            export HTTP_PROXY=$http_proxy
-            export HTTPS_PROXY=$https_proxy
-            export no_proxy=127.0.0.1,localhost
-            export NO_PROXY=$no_proxy
-
             DEPLOY_DIR=/data/yibao-agent-platform/asr-service
             IMAGE=ghcr.io/yibao-pro/asr-service:latest
             PROD_NAME=yibao-asr-service
             TEST_NAME=yibao-asr-service-candidate
             ENV_FILE=${DEPLOY_DIR}/.env
             MODEL_DIR=${DEPLOY_DIR}/model
-
-            echo "Configure Docker daemon proxy..."
-            sudo mkdir -p /etc/systemd/system/docker.service.d
-            cat <<'EOF' | sudo tee /etc/systemd/system/docker.service.d/proxy.conf >/dev/null
-            [Service]
-            Environment="HTTP_PROXY=http://127.0.0.1:7890"
-            Environment="HTTPS_PROXY=http://127.0.0.1:7890"
-            EOF
-
-            sudo systemctl daemon-reload
-            sudo systemctl restart docker
-
-            echo "Verify Docker daemon proxy..."
-            docker info | grep -i proxy
+            IMAGE_ARCHIVE=/tmp/asr-service-image.tar.gz
 
             mkdir -p "${DEPLOY_DIR}"
             cd "${DEPLOY_DIR}"
@@ -98,8 +105,14 @@ jobs:
               exit 1
             fi
 
-            echo "Pull latest image..."
-            docker pull "${IMAGE}"
+            if [ ! -f "${IMAGE_ARCHIVE}" ]; then
+              echo "Missing image archive: ${IMAGE_ARCHIVE}"
+              exit 1
+            fi
+
+            echo "Load image archive..."
+            gunzip -c "${IMAGE_ARCHIVE}" | docker load
+            rm -f "${IMAGE_ARCHIVE}"
 
             echo "Remove old candidate container..."
             docker stop "${TEST_NAME}" >/dev/null 2>&1 || true
