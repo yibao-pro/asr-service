@@ -102,8 +102,8 @@ jobs:
             docker pull "${IMAGE}"
 
             echo "Remove old candidate container..."
-            docker stop "${TEST_NAME}" || true
-            docker rm "${TEST_NAME}" || true
+            docker stop "${TEST_NAME}" >/dev/null 2>&1 || true
+            docker rm "${TEST_NAME}" >/dev/null 2>&1 || true
 
             echo "Start candidate container..."
             docker run -d \
@@ -116,11 +116,25 @@ jobs:
               -p 18002:8002 \
               "${IMAGE}"
 
-            echo "Wait for service..."
-            sleep 5
+            echo "Wait for service health..."
+            passed=false
+            for i in $(seq 1 24); do
+              if curl --noproxy '*' -fsS http://127.0.0.1:18002/healthz >/dev/null; then
+                passed=true
+                break
+              fi
+              sleep 5
+            done
 
-            echo "Health check..."
-            curl --noproxy '*' -f http://127.0.0.1:18002/healthz
+            if [ "${passed}" != "true" ]; then
+              echo "Candidate health check failed. Container status:"
+              docker ps -a --filter "name=${TEST_NAME}"
+              echo "Candidate logs:"
+              docker logs "${TEST_NAME}" || true
+              exit 1
+            fi
+
+            echo "Candidate health check passed."
 
             echo "Candidate passed. Replace production container..."
             docker stop "${TEST_NAME}"
@@ -139,8 +153,22 @@ jobs:
               -p 8002:8002 \
               "${IMAGE}"
 
-            echo "Check production..."
-            sleep 5
-            curl --noproxy '*' -f http://127.0.0.1:8002/healthz
+            echo "Check production health..."
+            passed=false
+            for i in $(seq 1 24); do
+              if curl --noproxy '*' -fsS http://127.0.0.1:8002/healthz >/dev/null; then
+                passed=true
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "${passed}" != "true" ]; then
+              echo "Production health check failed. Container status:"
+              docker ps -a --filter "name=${PROD_NAME}"
+              echo "Production logs:"
+              docker logs "${PROD_NAME}" || true
+              exit 1
+            fi
 
             echo "Deploy success."
