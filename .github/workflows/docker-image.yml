@@ -71,6 +71,20 @@ jobs:
             ENV_FILE=${DEPLOY_DIR}/.env
             MODEL_DIR=${DEPLOY_DIR}/model
 
+            echo "Configure Docker daemon proxy..."
+            sudo mkdir -p /etc/systemd/system/docker.service.d
+            cat <<'EOF' | sudo tee /etc/systemd/system/docker.service.d/proxy.conf >/dev/null
+            [Service]
+            Environment="HTTP_PROXY=http://127.0.0.1:7890"
+            Environment="HTTPS_PROXY=http://127.0.0.1:7890"
+            EOF
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart docker
+
+            echo "Verify Docker daemon proxy..."
+            docker info | grep -i proxy
+
             mkdir -p "${DEPLOY_DIR}"
             cd "${DEPLOY_DIR}"
 
