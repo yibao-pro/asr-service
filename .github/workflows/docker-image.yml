@@ -143,6 +143,20 @@ jobs:
             docker stop "${PROD_NAME}" || true
             docker rm "${PROD_NAME}" || true
 
+            echo "Release port 8002 if it is held by another Docker container..."
+            OLD_CONTAINERS="$(docker ps -aq --filter publish=8002)"
+            if [ -n "${OLD_CONTAINERS}" ]; then
+              echo "${OLD_CONTAINERS}" | xargs -r docker stop
+              echo "${OLD_CONTAINERS}" | xargs -r docker rm
+            fi
+
+            if sudo ss -ltn '( sport = :8002 )' | grep -q ':8002'; then
+              echo "Port 8002 is still occupied by a non-Docker listener:"
+              sudo ss -ltnp '( sport = :8002 )' || true
+              sudo lsof -iTCP:8002 -sTCP:LISTEN -n -P || true
+              exit 1
+            fi
+
             docker run -d \
               --name "${PROD_NAME}" \
               --restart unless-stopped \
