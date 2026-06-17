@@ -22,6 +22,6 @@ COPY main.py ./main.py
 
 RUN chmod +x /app/scripts/docker_start.sh /app/scripts/start_asr_service.sh
 
-EXPOSE 8002
+EXPOSE 8032
 
 CMD ["./scripts/docker_start.sh"]

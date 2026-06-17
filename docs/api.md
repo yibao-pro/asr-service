@@ -59,7 +59,7 @@ Content-Type: multipart/form-data
 curl --noproxy '*' -X POST \
   -F 'file=@./test/assets/zero_shot_prompt.wav' \
   -F 'lang=zh' \
-  http://127.0.0.1:8002/stt
+  http://127.0.0.1:8032/stt
 ```
 
 成功响应示例：

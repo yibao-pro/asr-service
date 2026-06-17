@@ -9,4 +9,4 @@ cd "${SERVICE_ROOT}"
 
 exec uvicorn api.app:app \
   --host "${ASR_SERVICE_HOST:-0.0.0.0}" \
-  --port "${ASR_SERVICE_PORT:-8002}"
+  --port "${ASR_SERVICE_PORT:-8032}"

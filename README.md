@@ -82,8 +82,11 @@ ASR_DEVICE=cuda ASR_COMPUTE_TYPE=float16 ./scripts/start_asr_service.sh
 默认端口：
 
 ```text
-8002
+8032
 ```
+
+当前仓库和 GitHub Actions 默认使用 `8032` 作为正式服务端口、`18032` 作为 candidate 检查端口。
+这样可以避开目标机器上已有的 `8002` 宿主机监听进程，减少部署冲突。
 
 ## 测试
 
@@ -155,8 +158,8 @@ ghcr.io/yibao-pro/asr-service:latest
 - 模型目录：`/data/yibao-agent-platform/asr-service/model`
 - 正式容器名：`yibao-asr-service`
 - 候选容器名：`yibao-asr-service-candidate`
-- candidate 端口：`18002`
-- 生产端口：`8002`
+- candidate 端口：`18032`
+- 生产端口：`8032`
 
 ## 新机器部署
 
@@ -178,7 +181,7 @@ CPU 示例：
 
 ```bash
 ASR_SERVICE_HOST=0.0.0.0
-ASR_SERVICE_PORT=8002
+ASR_SERVICE_PORT=8032
 ASR_MODEL_PATH=/app/model/Belle-faster-whisper-large-v3-zh-punct
 ASR_MODEL_SIZE=Belle-faster-whisper-large-v3-zh-punct
 ASR_DEVICE=cpu
@@ -189,7 +192,7 @@ GPU 示例：
 
 ```bash
 ASR_SERVICE_HOST=0.0.0.0
-ASR_SERVICE_PORT=8002
+ASR_SERVICE_PORT=8032
 ASR_MODEL_PATH=/app/model/Belle-faster-whisper-large-v3-zh-punct
 ASR_MODEL_SIZE=Belle-faster-whisper-large-v3-zh-punct
 ASR_DEVICE=cuda
@@ -206,7 +209,7 @@ docker run -d \
   --restart unless-stopped \
   --env-file /data/yibao-agent-platform/asr-service/.env \
   -v /data/yibao-agent-platform/asr-service/model:/app/model:ro \
-  -p 8002:8002 \
+  -p 8032:8032 \
   asr-service:latest
 ```
 
@@ -219,14 +222,14 @@ docker run -d \
   --gpus all \
   --env-file /data/yibao-agent-platform/asr-service/.env \
   -v /data/yibao-agent-platform/asr-service/model:/app/model:ro \
-  -p 8002:8002 \
+  -p 8032:8032 \
   asr-service:latest
 ```
 
 ### 4. 健康检查
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8002/healthz
+curl --noproxy '*' http://127.0.0.1:8032/healthz
 ```
 
 ### 5. 请求识别接口
@@ -235,7 +238,7 @@ curl --noproxy '*' http://127.0.0.1:8002/healthz
 curl --noproxy '*' -X POST \
   -F 'file=@./test/assets/zero_shot_prompt.wav' \
   -F 'lang=zh' \
-  http://127.0.0.1:8002/stt
+  http://127.0.0.1:8032/stt
 ```
 
 ## 接口

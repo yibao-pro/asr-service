@@ -3,7 +3,7 @@ from pathlib import Path
 
 import requests
 
-ASR_URL = "http://127.0.0.1:8002/stt"
+ASR_URL = "http://127.0.0.1:8032/stt"
 audio_path = Path(__file__).resolve().parent / "assets" / "zero_shot_prompt.wav"
 
 if not audio_path.exists():

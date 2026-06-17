@@ -111,15 +111,15 @@ jobs:
               --restart unless-stopped \
               --gpus all \
               --env-file "${ENV_FILE}" \
-              -e ASR_SERVICE_PORT=8002 \
+              -e ASR_SERVICE_PORT=8032 \
               -v "${MODEL_DIR}:/app/model:ro" \
-              -p 18002:8002 \
+              -p 18032:8032 \
               "${IMAGE}"
 
             echo "Wait for service health..."
             passed=false
             for i in $(seq 1 24); do
-              if curl --noproxy '*' -fsS http://127.0.0.1:18002/healthz >/dev/null; then
+              if curl --noproxy '*' -fsS http://127.0.0.1:18032/healthz >/dev/null; then
                 passed=true
                 break
               fi
@@ -143,17 +143,17 @@ jobs:
             docker stop "${PROD_NAME}" || true
             docker rm "${PROD_NAME}" || true
 
-            echo "Release port 8002 if it is held by another Docker container..."
-            OLD_CONTAINERS="$(docker ps -aq --filter publish=8002)"
+            echo "Release port 8032 if it is held by another Docker container..."
+            OLD_CONTAINERS="$(docker ps -aq --filter publish=8032)"
             if [ -n "${OLD_CONTAINERS}" ]; then
               echo "${OLD_CONTAINERS}" | xargs -r docker stop
               echo "${OLD_CONTAINERS}" | xargs -r docker rm
             fi
 
-            if sudo ss -ltn '( sport = :8002 )' | grep -q ':8002'; then
-              echo "Port 8002 is still occupied by a non-Docker listener:"
-              sudo ss -ltnp '( sport = :8002 )' || true
-              sudo lsof -iTCP:8002 -sTCP:LISTEN -n -P || true
+            if sudo ss -ltn '( sport = :8032 )' | grep -q ':8032'; then
+              echo "Port 8032 is still occupied by a non-Docker listener:"
+              sudo ss -ltnp '( sport = :8032 )' || true
+              sudo lsof -iTCP:8032 -sTCP:LISTEN -n -P || true
               exit 1
             fi
 
@@ -162,15 +162,15 @@ jobs:
               --restart unless-stopped \
               --gpus all \
               --env-file "${ENV_FILE}" \
-              -e ASR_SERVICE_PORT=8002 \
+              -e ASR_SERVICE_PORT=8032 \
               -v "${MODEL_DIR}:/app/model:ro" \
-              -p 8002:8002 \
+              -p 8032:8032 \
               "${IMAGE}"
 
             echo "Check production health..."
             passed=false
             for i in $(seq 1 24); do
-              if curl --noproxy '*' -fsS http://127.0.0.1:8002/healthz >/dev/null; then
+              if curl --noproxy '*' -fsS http://127.0.0.1:8032/healthz >/dev/null; then
                 passed=true
                 break
               fi
