@@ -7,6 +7,4 @@ SERVICE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${SERVICE_ROOT}"
 
-exec uvicorn api.app:app \
-  --host "${ASR_SERVICE_HOST:-0.0.0.0}" \
-  --port "${ASR_SERVICE_PORT:-8032}"
+exec python -m api.grpc_server

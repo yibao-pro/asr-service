@@ -1,6 +1,6 @@
 # ASR Service
 
-一个独立部署的语音识别服务，基于 `FastAPI + faster-whisper` 实现。
+一个独立部署的语音识别服务，基于 `gRPC + faster-whisper` 实现。
 
 ## 目录结构
 
@@ -22,8 +22,8 @@ asr-service/
 
 ## 核心能力
 
-- `GET /healthz` 健康检查
-- `POST /stt` 音频转文本
+- `Healthz` 健康检查
+- `Transcribe` 音频转文本
 - 同时支持 CPU 和 GPU 推理
 - 使用本地模型目录运行，不依赖 `./yibao-pro`
 
@@ -96,7 +96,7 @@ ASR_DEVICE=cuda ASR_COMPUTE_TYPE=float16 ./scripts/start_asr_service.sh
 ASR_DEVICE=cpu ASR_COMPUTE_TYPE=int8 pytest -q test/test_asr_engine.py
 ```
 
-接口测试：
+gRPC 转写测试：
 
 ```bash
 python test/test_api.py
@@ -143,7 +143,7 @@ ghcr.io/yibao-pro/asr-service:latest
 当前流程：
 
 - `docker-image`：构建并推送 `ghcr.io/yibao-pro/asr-service:latest`
-- `deploy`：SSH 到目标服务器，先启动 candidate 容器做健康检查，再替换正式容器
+- `deploy`：SSH 到目标服务器，先启动 candidate 容器，在容器内执行 gRPC health probe，再替换正式容器
 
 部署所需 GitHub Secrets：
 
@@ -229,22 +229,34 @@ docker run -d \
 ### 4. 健康检查
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8032/healthz
+python scripts/grpc_health_probe.py 127.0.0.1:8032 asr.v1.AsrService
 ```
 
 ### 5. 请求识别接口
 
-```bash
-curl --noproxy '*' -X POST \
-  -F 'file=@./test/assets/zero_shot_prompt.wav' \
-  -F 'lang=zh' \
-  http://127.0.0.1:8032/stt
+```python
+from pathlib import Path
+import grpc
+from src.generated import asr_pb2, asr_pb2_grpc
+
+audio_path = Path("./test/assets/zero_shot_prompt.wav")
+
+with audio_path.open("rb") as fh, grpc.insecure_channel("127.0.0.1:8032") as channel:
+    stub = asr_pb2_grpc.AsrServiceStub(channel)
+    response = stub.Transcribe(
+        asr_pb2.TranscribeRequest(
+            audio_bytes=fh.read(),
+            filename=audio_path.name,
+            lang="zh",
+        )
+    )
+    print(response.text)
 ```
 
 ## 接口
 
-- `GET /healthz`
-- `POST /stt`
+- `Healthz`
+- `Transcribe`
 
 详细接口文档见：
 

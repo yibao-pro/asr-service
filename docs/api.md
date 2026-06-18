@@ -1,82 +1,71 @@
-# ASR Service API
+# ASR Service gRPC API
 
-Base URL:
-
-```text
-/
-```
-
-公共约定：
-
-- 健康检查使用 `GET /healthz`
-- 识别接口使用 `POST /stt`
-- `/stt` 使用 `multipart/form-data`
-
-## Health Check
-
-`GET /healthz`
-
-成功响应示例：
-
-```json
-{
-  "status": "ok",
-  "device": "cuda",
-  "compute_type": "float16",
-  "asr_model_root": "/app/model",
-  "asr_model_size": "Belle-faster-whisper-large-v3-zh-punct",
-  "asr_model_path": "/app/model/Belle-faster-whisper-large-v3-zh-punct"
-}
-```
-
-字段说明：
-
-- `status`: 固定为 `ok`
-- `device`: 当前加载模型使用的设备
-- `compute_type`: 当前推理精度
-- `asr_model_root`: 模型根目录
-- `asr_model_size`: 模型目录名
-- `asr_model_path`: 实际模型路径
-
-## Speech To Text
-
-`POST /stt`
-
-请求格式：
+服务名：
 
 ```text
-Content-Type: multipart/form-data
+asr.v1.AsrService
 ```
 
-表单字段：
+## Healthz
 
-- `file`: 必填，音频文件
+RPC：
+
+```text
+Healthz(HealthzRequest) returns (HealthzResponse)
+```
+
+成功响应字段：
+
+- `status`
+- `device`
+- `compute_type`
+- `asr_model_root`
+- `asr_model_size`
+- `asr_model_path`
+
+## Transcribe
+
+RPC：
+
+```text
+Transcribe(TranscribeRequest) returns (TranscribeResponse)
+```
+
+请求字段：
+
+- `audio_bytes`: 必填，音频二进制内容
+- `filename`: 选填，文件名，默认 `audio.wav`
 - `lang`: 选填，默认 `zh`
 
 请求示例：
 
-```bash
-curl --noproxy '*' -X POST \
-  -F 'file=@./test/assets/zero_shot_prompt.wav' \
-  -F 'lang=zh' \
-  http://127.0.0.1:8032/stt
+```python
+from pathlib import Path
+import grpc
+from src.generated import asr_pb2, asr_pb2_grpc
+
+audio_path = Path("./test/assets/zero_shot_prompt.wav")
+
+with audio_path.open("rb") as fh, grpc.insecure_channel("127.0.0.1:8032") as channel:
+    stub = asr_pb2_grpc.AsrServiceStub(channel)
+    response = stub.Transcribe(
+        asr_pb2.TranscribeRequest(
+            audio_bytes=fh.read(),
+            filename=audio_path.name,
+            lang="zh",
+        )
+    )
+    print(response.text)
 ```
 
-成功响应示例：
+成功响应字段：
 
-```json
-{
-  "text": "这是一条测试语音。"
-}
-```
+- `text`
 
-失败响应示例：
+失败时常见 gRPC code：
 
-```json
-{
-  "detail": "ASR failed: <error message>"
-}
-```
+- `INVALID_ARGUMENT`: `audio_bytes` 为空
+- `INTERNAL`: 转写失败
 
 典型失败原因：
 

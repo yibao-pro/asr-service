@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package asr.v1;
+
+service AsrService {
+  rpc Healthz(HealthzRequest) returns (HealthzResponse);
+  rpc Transcribe(TranscribeRequest) returns (TranscribeResponse);
+}
+
+message HealthzRequest {}
+
+message HealthzResponse {
+  string status = 1;
+  string device = 2;
+  string compute_type = 3;
+  string asr_model_root = 4;
+  string asr_model_size = 5;
+  string asr_model_path = 6;
+}
+
+message TranscribeRequest {
+  bytes audio_bytes = 1;
+  string filename = 2;
+  string lang = 3;
+}
+
+message TranscribeResponse {
+  string text = 1;
+}
